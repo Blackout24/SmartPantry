@@ -15,6 +15,10 @@
     <string name="add_ingredient">Add ingredient</string>
     <string name="view_suggested_recipes">View Suggestions</string>
     <string name="expires_on">Expires on %1$s</string>
+    <string name="expired_on">Expired on %1$s</string>
+    <string name="expires_today">Expires today</string>
+    <string name="expires_tomorrow">Expires tomorrow</string>
+    <string name="expires_in_days">Expires in %1$d days</string>
     <string name="no_recipes_match">No recipes match your pantry yet - add more ingredients</string>
     <string name="almost_there_header">Almost There (missing 1 ingredient)</string>
     <string name="missing_one_ingredient">Missing 1 ingredient</string>
