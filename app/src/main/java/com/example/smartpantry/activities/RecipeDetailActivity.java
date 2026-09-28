@@ -21,6 +21,8 @@ public class RecipeDetailActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
+        findViewById(R.id.buttonBack).setOnClickListener(v -> finish());
+
         DatabaseHelper dbHelper = new DatabaseHelper(this);
         long recipeId = getIntent().getLongExtra(SuggestedRecipesActivity.EXTRA_RECIPE_ID, -1);
         Recipe recipe = dbHelper.getRecipe(recipeId);
