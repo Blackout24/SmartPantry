@@ -26,6 +26,7 @@
     <string name="method_header">Method</string>
     <string name="recipe_not_found">Recipe not found</string>
     <string name="back">Back</string>
+    <string name="recipe_photo">Recipe photo</string>
     <string name="nav_pantry">Pantry</string>
     <string name="nav_suggestions">Suggestions</string>
     <string name="nav_settings">Settings</string>

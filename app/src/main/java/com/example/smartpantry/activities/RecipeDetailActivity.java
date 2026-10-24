@@ -9,6 +9,7 @@ import com.example.smartpantry.R;
 import com.example.smartpantry.database.DatabaseHelper;
 import com.example.smartpantry.models.Recipe;
 import com.example.smartpantry.models.RecipeIngredient;
+import com.example.smartpantry.utils.RecipeImages;
 
 public class RecipeDetailActivity extends AppCompatActivity {
 
@@ -38,6 +39,7 @@ public class RecipeDetailActivity extends AppCompatActivity {
 
         setTitle(recipe.getName());
         nameView.setText(recipe.getName());
+        RecipeImages.apply(findViewById(R.id.imageRecipe), recipe.getName());
 
         StringBuilder ingredientsText = new StringBuilder();
         for (RecipeIngredient ing : recipe.getIngredients()) {

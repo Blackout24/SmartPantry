@@ -18,6 +18,14 @@
             android:layout_marginStart="-12dp"
             android:text="@string/back" />
 
+        <ImageView
+            android:id="@+id/imageRecipe"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginBottom="16dp"
+            android:background="#22888888"
+            android:contentDescription="@string/recipe_photo" />
+
         <TextView
             android:id="@+id/textRecipeDetailName"
             android:layout_width="wrap_content"
