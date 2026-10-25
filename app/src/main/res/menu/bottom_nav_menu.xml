@@ -12,6 +12,11 @@
         android:title="@string/nav_suggestions" />
 
     <item
+        android:id="@+id/navPlanner"
+        android:icon="@android:drawable/ic_menu_my_calendar"
+        android:title="@string/nav_planner" />
+
+    <item
         android:id="@+id/navSettings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/nav_settings" />

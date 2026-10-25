@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.example.smartpantry.models.MealPlanEntry;
 import com.example.smartpantry.models.PantryItem;
 import com.example.smartpantry.models.Recipe;
 import com.example.smartpantry.models.RecipeIngredient;
@@ -18,7 +19,7 @@ import java.util.Set;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "smart_pantry.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     // pantry_items
     public static final String TABLE_PANTRY = "pantry_items";
@@ -42,6 +43,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COL_RI_INGREDIENT_NAME = "ingredient_name";
     public static final String COL_RI_QUANTITY = "required_quantity";
     public static final String COL_RI_UNIT = "unit";
+
+    // meal_plan (added in version 2)
+    public static final String TABLE_MEAL_PLAN = "meal_plan";
+    public static final String COL_MP_ID = "id";
+    public static final String COL_MP_DAY = "day_index";     // 0 = Monday ... 6 = Sunday
+    public static final String COL_MP_MEAL = "meal_type";    // 0 breakfast, 1 lunch, 2 dinner
+    public static final String COL_MP_RECIPE_ID = "recipe_id";
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -69,14 +77,25 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_RI_QUANTITY + " REAL NOT NULL, " +
                 COL_RI_UNIT + " TEXT, " +
                 "FOREIGN KEY(" + COL_RI_RECIPE_ID + ") REFERENCES " + TABLE_RECIPES + "(" + COL_RECIPE_ID + "))");
+
+        createMealPlanTable(db);
+    }
+
+    private void createMealPlanTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_MEAL_PLAN + " (" +
+                COL_MP_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_MP_DAY + " INTEGER NOT NULL, " +
+                COL_MP_MEAL + " INTEGER NOT NULL, " +
+                COL_MP_RECIPE_ID + " INTEGER NOT NULL, " +
+                "UNIQUE(" + COL_MP_DAY + ", " + COL_MP_MEAL + "))");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RECIPE_INGREDIENTS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RECIPES);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PANTRY);
-        onCreate(db);
+        // Keep the user's pantry: only add what is new.
+        if (oldVersion < 2) {
+            createMealPlanTable(db);
+        }
     }
 
     // ---------- Pantry CRUD ----------
@@ -142,6 +161,51 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.delete(TABLE_PANTRY, COL_PANTRY_ID + "=?", new String[]{String.valueOf(id)});
         db.close();
+    }
+
+    // ---------- Meal plan CRUD ----------
+
+    /** Assigns a recipe to a slot, replacing whatever was there. */
+    public void setMeal(int dayIndex, int mealType, long recipeId) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COL_MP_DAY, dayIndex);
+        values.put(COL_MP_MEAL, mealType);
+        values.put(COL_MP_RECIPE_ID, recipeId);
+        db.insertWithOnConflict(TABLE_MEAL_PLAN, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        db.close();
+    }
+
+    public void clearMeal(int dayIndex, int mealType) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_MEAL_PLAN, COL_MP_DAY + "=? AND " + COL_MP_MEAL + "=?",
+                new String[]{String.valueOf(dayIndex), String.valueOf(mealType)});
+        db.close();
+    }
+
+    public void clearMealPlan() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_MEAL_PLAN, null, null);
+        db.close();
+    }
+
+    public List<MealPlanEntry> getMealPlan() {
+        List<MealPlanEntry> entries = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor cursor = db.query(TABLE_MEAL_PLAN, null, null, null, null, null,
+                COL_MP_DAY + " ASC, " + COL_MP_MEAL + " ASC");
+        if (cursor.moveToFirst()) {
+            do {
+                entries.add(new MealPlanEntry(
+                        cursor.getLong(cursor.getColumnIndexOrThrow(COL_MP_ID)),
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COL_MP_DAY)),
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COL_MP_MEAL)),
+                        cursor.getLong(cursor.getColumnIndexOrThrow(COL_MP_RECIPE_ID))));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return entries;
     }
 
     // ---------- Recipe read / seed ----------

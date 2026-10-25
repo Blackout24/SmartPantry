@@ -4,7 +4,6 @@ import com.example.smartpantry.models.PantryItem;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -21,7 +20,7 @@ public class ExpiryUtils {
     /** Days from today until expiry (negative = already expired), or null if the date is missing/invalid. */
     public static Integer daysUntil(String isoExpiry, int todayYear, int todayMonth, int todayDay) {
         Long expiry = parseToDayNumber(isoExpiry);
-        if (expiry == null || !isValidDate(todayYear, todayMonth, todayDay)) return null;
+        if (expiry == null || isInvalidDate(todayYear, todayMonth, todayDay)) return null;
         return (int) (expiry - toDayNumber(todayYear, todayMonth, todayDay));
     }
 
@@ -58,15 +57,11 @@ public class ExpiryUtils {
         List<Urgent> out = new ArrayList<>();
         for (PantryItem item : items) {
             Integer days = daysUntil(item.getExpiryDate(), y, m, d);
+            if (days == null) continue; // no date or invalid date
             Status s = statusFor(days, soonDays);
             if (s == Status.EXPIRED || s == Status.SOON) out.add(new Urgent(item, days));
         }
-        Collections.sort(out, new Comparator<Urgent>() {
-            @Override
-            public int compare(Urgent a, Urgent b) {
-                return Integer.compare(a.daysUntil, b.daysUntil);
-            }
-        });
+        Collections.sort(out, (a, b) -> Integer.compare(a.daysUntil, b.daysUntil));
         return out;
     }
 
@@ -78,13 +73,13 @@ public class ExpiryUtils {
         int y = Integer.parseInt(s.substring(0, 4));
         int m = Integer.parseInt(s.substring(5, 7));
         int d = Integer.parseInt(s.substring(8, 10));
-        if (!isValidDate(y, m, d)) return null;
+        if (isInvalidDate(y, m, d)) return null;
         return toDayNumber(y, m, d);
     }
 
-    static boolean isValidDate(int y, int m, int d) {
-        if (m < 1 || m > 12 || d < 1) return false;
-        return d <= daysInMonth(y, m);
+    static boolean isInvalidDate(int y, int m, int d) {
+        if (m < 1 || m > 12 || d < 1) return true;
+        return d > daysInMonth(y, m);
     }
 
     private static int daysInMonth(int y, int m) {
