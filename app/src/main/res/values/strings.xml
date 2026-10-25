@@ -19,6 +19,11 @@
     <string name="expires_today">Expires today</string>
     <string name="expires_tomorrow">Expires tomorrow</string>
     <string name="expires_in_days">Expires in %1$d days</string>
+    <string name="expiry_window_label">Warn me when food expires within</string>
+    <string name="days_1">1 day</string>
+    <string name="days_3">3 days</string>
+    <string name="days_7">7 days</string>
+    <string name="use_these_first">Use these first</string>
     <string name="no_recipes_match">No recipes match your pantry yet - add more ingredients</string>
     <string name="almost_there_header">Almost There (missing 1 ingredient)</string>
     <string name="missing_one_ingredient">Missing 1 ingredient</string>

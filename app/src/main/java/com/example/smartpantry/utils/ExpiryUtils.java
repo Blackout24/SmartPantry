@@ -1,5 +1,12 @@
 package com.example.smartpantry.utils;
 
+import com.example.smartpantry.models.PantryItem;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 /**
  * Expiry-date logic with no Android or time-zone dependency.
  * Dates are converted to a day number (days since 1970-01-01) from their year/month/day
@@ -25,10 +32,42 @@ public class ExpiryUtils {
     }
 
     public static Status statusFor(Integer daysUntil) {
+        return statusFor(daysUntil, SOON_THRESHOLD_DAYS);
+    }
+
+    /** soonDays is the user's warning window (1, 3 or 7 days). */
+    public static Status statusFor(Integer daysUntil, int soonDays) {
         if (daysUntil == null) return Status.NONE;
         if (daysUntil < 0) return Status.EXPIRED;
-        if (daysUntil <= SOON_THRESHOLD_DAYS) return Status.SOON;
+        if (daysUntil <= soonDays) return Status.SOON;
         return Status.OK;
+    }
+
+    public static class Urgent {
+        public final PantryItem item;
+        public final int daysUntil; // negative = already expired
+
+        Urgent(PantryItem item, int daysUntil) {
+            this.item = item;
+            this.daysUntil = daysUntil;
+        }
+    }
+
+    /** Expired or expiring within soonDays, most urgent first (most overdue, then soonest). */
+    public static List<Urgent> urgentItems(List<PantryItem> items, int y, int m, int d, int soonDays) {
+        List<Urgent> out = new ArrayList<>();
+        for (PantryItem item : items) {
+            Integer days = daysUntil(item.getExpiryDate(), y, m, d);
+            Status s = statusFor(days, soonDays);
+            if (s == Status.EXPIRED || s == Status.SOON) out.add(new Urgent(item, days));
+        }
+        Collections.sort(out, new Comparator<Urgent>() {
+            @Override
+            public int compare(Urgent a, Urgent b) {
+                return Integer.compare(a.daysUntil, b.daysUntil);
+            }
+        });
+        return out;
     }
 
     /** Strict "yyyy-MM-dd" parse; returns null for anything else (including 2027-02-29). */

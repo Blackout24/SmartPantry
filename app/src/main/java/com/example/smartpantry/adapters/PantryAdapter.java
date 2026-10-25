@@ -84,22 +84,27 @@ public class PantryAdapter extends RecyclerView.Adapter<PantryAdapter.PantryView
         boolean alertsOn = ctx.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(SettingsActivity.KEY_EXPIRY_ALERTS, true);
         Integer days = ExpiryUtils.daysUntil(date, Calendar.getInstance());
-        ExpiryUtils.Status status = alertsOn ? ExpiryUtils.statusFor(days) : ExpiryUtils.Status.NONE;
+        int soonDays = ctx.getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(SettingsActivity.KEY_EXPIRY_DAYS, 3);
+        ExpiryUtils.Status status = alertsOn ? ExpiryUtils.statusFor(days, soonDays) : ExpiryUtils.Status.NONE;
 
         switch (status) {
             case EXPIRED:
                 holder.expiry.setText(ctx.getString(R.string.expired_on, date));
                 holder.expiry.setTextColor(Color.parseColor("#C62828")); // red
+                holder.expiry.setTypeface(null, android.graphics.Typeface.BOLD);
                 break;
             case SOON:
                 holder.expiry.setText(days == 0 ? ctx.getString(R.string.expires_today)
                         : days == 1 ? ctx.getString(R.string.expires_tomorrow)
                           : ctx.getString(R.string.expires_in_days, days));
                 holder.expiry.setTextColor(Color.parseColor("#B26A00")); // amber
+                holder.expiry.setTypeface(null, android.graphics.Typeface.BOLD);
                 break;
             default:
                 holder.expiry.setText(ctx.getString(R.string.expires_on, date));
                 holder.expiry.setTextColor(Color.parseColor("#888888")); // reset for recycled views
+                holder.expiry.setTypeface(null, android.graphics.Typeface.NORMAL);
         }
     }
 

@@ -28,12 +28,49 @@
                 android:text="@string/expiry_alerts_label"
                 android:textSize="16sp" />
 
-            <Switch
+            <androidx.appcompat.widget.SwitchCompat
                 android:id="@+id/switchExpiryAlerts"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
 
         </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="@string/expiry_window_label"
+            android:textStyle="bold"
+            android:textSize="16sp" />
+
+        <RadioGroup
+            android:id="@+id/radioGroupExpiryDays"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/radioDays1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/days_1" />
+
+            <RadioButton
+                android:id="@+id/radioDays3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="@string/days_3" />
+
+            <RadioButton
+                android:id="@+id/radioDays7"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="@string/days_7" />
+
+        </RadioGroup>
 
         <TextView
             android:layout_width="wrap_content"
