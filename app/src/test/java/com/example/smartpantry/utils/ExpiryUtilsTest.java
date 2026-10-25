@@ -2,9 +2,13 @@ package com.example.smartpantry.utils;
 
 import static org.junit.Assert.*;
 
+import com.example.smartpantry.models.PantryItem;
+
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 import java.util.TimeZone;
 
 public class ExpiryUtilsTest {
@@ -96,7 +100,7 @@ public class ExpiryUtilsTest {
 
     @Test
     public void daylightSavingOtherZones() {
-        // Southern hemisphere, and a 30-minute shift.
+        // Southern Hemisphere, and a 30-minute shift.
         withZone("Australia/Sydney", () -> {
             assertEquals(Integer.valueOf(2), ExpiryUtils.daysUntil("2026-10-06", at(2026, 10, 4, 0, 10))); // DST starts 4 Oct
             assertEquals(Integer.valueOf(2), ExpiryUtils.daysUntil("2026-04-07", at(2026, 4, 5, 23, 50))); // DST ends 5 Apr
@@ -115,5 +119,52 @@ public class ExpiryUtilsTest {
             withZone(z, () ->
                     assertEquals(Integer.valueOf(5), ExpiryUtils.daysUntil("2026-06-15", at(2026, 6, 10, 23, 59))));
         }
+    }
+
+    // ---------- warning window (1 / 3 / 7 days) and "Use these first" ----------
+
+    private static PantryItem pi(long id, String name, String expiry) {
+        return new PantryItem(id, name.toLowerCase(), name, 1, "pcs", expiry);
+    }
+
+    @Test
+    public void windowChangesWhatCountsAsSoon() {
+        assertEquals(ExpiryUtils.Status.SOON, ExpiryUtils.statusFor(1, 1));
+        assertEquals(ExpiryUtils.Status.OK, ExpiryUtils.statusFor(2, 1));
+        assertEquals(ExpiryUtils.Status.SOON, ExpiryUtils.statusFor(3, 3));
+        assertEquals(ExpiryUtils.Status.OK, ExpiryUtils.statusFor(4, 3));
+        assertEquals(ExpiryUtils.Status.SOON, ExpiryUtils.statusFor(7, 7));
+        assertEquals(ExpiryUtils.Status.OK, ExpiryUtils.statusFor(8, 7));
+        assertEquals(ExpiryUtils.Status.EXPIRED, ExpiryUtils.statusFor(-1, 7));
+        assertEquals(ExpiryUtils.Status.SOON, ExpiryUtils.statusFor(0, 1)); // today is always urgent
+    }
+
+    @Test
+    public void urgentItemsSortedMostUrgentFirstAndFiltered() {
+        List<PantryItem> items = Arrays.asList(
+                pi(1, "Milk", "2026-05-12"),   // +2
+                pi(2, "Bread", "2026-05-08"),  // -2 expired
+                pi(3, "Rice", null),           // no date
+                pi(4, "Jam", "2027-01-01"),    // far away
+                pi(5, "Eggs", "2026-05-10"),   // today
+                pi(6, "Ham", "2026-05-09"),    // -1 expired
+                pi(7, "Oops", "2026-02-30"),   // invalid date
+                pi(8, "Cheese", "2026-05-17")  // +7
+        );
+        List<ExpiryUtils.Urgent> u3 = ExpiryUtils.urgentItems(items, 2026, 5, 10, 3);
+        assertEquals(4, u3.size());
+        assertEquals("Bread", u3.get(0).item.getDisplayName());
+        assertEquals("Ham", u3.get(1).item.getDisplayName());
+        assertEquals("Eggs", u3.get(2).item.getDisplayName());
+        assertEquals("Milk", u3.get(3).item.getDisplayName());
+
+        assertEquals(3, ExpiryUtils.urgentItems(items, 2026, 5, 10, 1).size()); // Bread, Ham, Eggs
+        assertEquals(5, ExpiryUtils.urgentItems(items, 2026, 5, 10, 7).size()); // + Cheese
+    }
+
+    @Test
+    public void urgentItemsEmptyWhenNothingExpiring() {
+        assertTrue(ExpiryUtils.urgentItems(Arrays.asList(pi(1, "Jam", "2030-01-01")), 2026, 5, 10, 7).isEmpty());
+        assertTrue(ExpiryUtils.urgentItems(Arrays.<PantryItem>asList(), 2026, 5, 10, 7).isEmpty());
     }
 }

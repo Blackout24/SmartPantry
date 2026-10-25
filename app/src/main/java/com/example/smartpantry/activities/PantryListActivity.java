@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -16,6 +15,7 @@ import com.example.smartpantry.database.DatabaseHelper;
 import com.example.smartpantry.models.PantryItem;
 import com.example.smartpantry.utils.BottomNavHelper;
 import com.example.smartpantry.utils.ExpiryUtils;
+import com.example.smartpantry.utils.PantryRemoval;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -48,18 +48,7 @@ public class PantryListActivity extends AppCompatActivity {
                     intent.putExtra(EXTRA_ITEM_ID, item.getId());
                     startActivity(intent);
                 },
-                item -> new AlertDialog.Builder(PantryListActivity.this)
-                        .setTitle(R.string.delete_ingredient)
-                        .setMessage(R.string.delete_confirmation_message)
-                        .setPositiveButton(R.string.delete, (dialog, which) -> {
-                            dbHelper.deletePantryItem(item.getId());
-                            List<PantryItem> refreshed = dbHelper.getAllPantryItems();
-                            adapter.updateItems(refreshed);
-                            toggleEmptyState(refreshed.isEmpty());
-                            refreshUseFirst(refreshed);
-                        })
-                        .setNegativeButton(R.string.cancel, null)
-                        .show());
+                item -> PantryRemoval.confirm(PantryListActivity.this, dbHelper, item, this::reload));
         recyclerView.setAdapter(adapter);
         toggleEmptyState(items.isEmpty());
 
@@ -74,7 +63,13 @@ public class PantryListActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh in case an item was added/edited/deleted on the previous screen
+        // Record anything that expired since the last visit, then refresh the list.
+        Calendar now = Calendar.getInstance();
+        dbHelper.sweepExpired(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH));
+        reload();
+    }
+
+    private void reload() {
         List<PantryItem> items = dbHelper.getAllPantryItems();
         adapter.updateItems(items);
         toggleEmptyState(items.isEmpty());

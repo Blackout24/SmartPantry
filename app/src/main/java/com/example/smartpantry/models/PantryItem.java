@@ -7,6 +7,8 @@ public class PantryItem {
     private double quantity;
     private String unit;
     private String expiryDate;   // ISO 8601 "yyyy-MM-dd", nullable
+    private Double price;        // total price paid for the quantity entered, nullable
+    private boolean expiryLogged; // true once an "expired" waste event was recorded for this item
 
     public PantryItem() { }
 
@@ -33,6 +35,12 @@ public class PantryItem {
 
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
+
+    public Double getPrice() { return price; }
+    public void setPrice(Double price) { this.price = price; }
+
+    public boolean isExpiryLogged() { return expiryLogged; }
+    public void setExpiryLogged(boolean expiryLogged) { this.expiryLogged = expiryLogged; }
 
     public String getExpiryDate() { return expiryDate; }
     public void setExpiryDate(String expiryDate) { this.expiryDate = expiryDate; }

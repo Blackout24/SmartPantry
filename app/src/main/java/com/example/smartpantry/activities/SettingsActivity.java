@@ -1,5 +1,6 @@
 package com.example.smartpantry.activities;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.RadioGroup;
@@ -49,6 +50,9 @@ public class SettingsActivity extends AppCompatActivity {
             String value = (checkedId == R.id.radioMetric) ? "metric" : "imperial";
             prefs.edit().putString(KEY_UNITS, value).apply();
         });
+
+        findViewById(R.id.buttonDashboard).setOnClickListener(v ->
+                startActivity(new Intent(this, DashboardActivity.class)));
 
         BottomNavigationView bottomNav = findViewById(R.id.bottomNav);
         BottomNavHelper.setup(this, bottomNav, BottomNavHelper.Tab.SETTINGS);

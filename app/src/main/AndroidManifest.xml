@@ -32,6 +32,10 @@
             android:parentActivityName=".activities.PantryListActivity" />
 
         <activity
+            android:name=".activities.DashboardActivity"
+            android:parentActivityName=".activities.SettingsActivity" />
+
+        <activity
             android:name=".activities.MealPlannerActivity"
             android:parentActivityName=".activities.PantryListActivity" />
 

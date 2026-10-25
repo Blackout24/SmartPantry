@@ -6,8 +6,11 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.example.smartpantry.models.FoodEvent;
 import com.example.smartpantry.models.MealPlanEntry;
 import com.example.smartpantry.models.PantryItem;
+import com.example.smartpantry.utils.PantryCooker;
+import com.example.smartpantry.utils.WasteStats;
 import com.example.smartpantry.models.Recipe;
 import com.example.smartpantry.models.RecipeIngredient;
 
@@ -19,7 +22,7 @@ import java.util.Set;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "smart_pantry.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
 
     // pantry_items
     public static final String TABLE_PANTRY = "pantry_items";
@@ -29,6 +32,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COL_PANTRY_QUANTITY = "quantity";
     public static final String COL_PANTRY_UNIT = "unit";
     public static final String COL_PANTRY_EXPIRY = "expiry_date";
+    public static final String COL_PANTRY_PRICE = "price";                  // added in version 3
+    public static final String COL_PANTRY_EXPIRY_LOGGED = "expiry_logged";  // added in version 3
 
     // recipes
     public static final String TABLE_RECIPES = "recipes";
@@ -51,6 +56,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COL_MP_MEAL = "meal_type";    // 0 breakfast, 1 lunch, 2 dinner
     public static final String COL_MP_RECIPE_ID = "recipe_id";
 
+    // food_events (added in version 3): the log behind the waste/savings dashboard
+    public static final String TABLE_FOOD_EVENTS = "food_events";
+    public static final String COL_FE_ID = "id";
+    public static final String COL_FE_TYPE = "event_type";
+    public static final String COL_FE_ITEM = "item_name";
+    public static final String COL_FE_QUANTITY = "quantity";
+    public static final String COL_FE_UNIT = "unit";
+    public static final String COL_FE_VALUE = "value";
+    public static final String COL_FE_DATE = "event_date";
+    public static final String COL_FE_BEFORE_EXPIRY = "before_expiry";
+
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -63,7 +79,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_PANTRY_DISPLAY_NAME + " TEXT NOT NULL, " +
                 COL_PANTRY_QUANTITY + " REAL NOT NULL, " +
                 COL_PANTRY_UNIT + " TEXT, " +
-                COL_PANTRY_EXPIRY + " TEXT)");
+                COL_PANTRY_EXPIRY + " TEXT, " +
+                COL_PANTRY_PRICE + " REAL, " +
+                COL_PANTRY_EXPIRY_LOGGED + " INTEGER NOT NULL DEFAULT 0)");
 
         db.execSQL("CREATE TABLE " + TABLE_RECIPES + " (" +
                 COL_RECIPE_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -79,6 +97,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "FOREIGN KEY(" + COL_RI_RECIPE_ID + ") REFERENCES " + TABLE_RECIPES + "(" + COL_RECIPE_ID + "))");
 
         createMealPlanTable(db);
+        createFoodEventsTable(db);
+    }
+
+    private void createFoodEventsTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_FOOD_EVENTS + " (" +
+                COL_FE_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_FE_TYPE + " INTEGER NOT NULL, " +
+                COL_FE_ITEM + " TEXT NOT NULL, " +
+                COL_FE_QUANTITY + " REAL NOT NULL, " +
+                COL_FE_UNIT + " TEXT, " +
+                COL_FE_VALUE + " REAL NOT NULL DEFAULT 0, " +
+                COL_FE_DATE + " TEXT NOT NULL, " +
+                COL_FE_BEFORE_EXPIRY + " INTEGER NOT NULL DEFAULT 0)");
     }
 
     private void createMealPlanTable(SQLiteDatabase db) {
@@ -96,6 +127,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             createMealPlanTable(db);
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE " + TABLE_PANTRY + " ADD COLUMN " + COL_PANTRY_PRICE + " REAL");
+            db.execSQL("ALTER TABLE " + TABLE_PANTRY + " ADD COLUMN " + COL_PANTRY_EXPIRY_LOGGED
+                    + " INTEGER NOT NULL DEFAULT 0");
+            createFoodEventsTable(db);
+        }
     }
 
     // ---------- Pantry CRUD ----------
@@ -108,6 +145,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COL_PANTRY_QUANTITY, item.getQuantity());
         values.put(COL_PANTRY_UNIT, item.getUnit());
         values.put(COL_PANTRY_EXPIRY, item.getExpiryDate());
+        values.put(COL_PANTRY_PRICE, item.getPrice());
         long id = db.insert(TABLE_PANTRY, null, values);
         db.close();
         return id;
@@ -151,6 +189,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COL_PANTRY_QUANTITY, item.getQuantity());
         values.put(COL_PANTRY_UNIT, item.getUnit());
         values.put(COL_PANTRY_EXPIRY, item.getExpiryDate());
+        values.put(COL_PANTRY_PRICE, item.getPrice());
+
+        // A new expiry date means any earlier "expired" log no longer applies.
+        Cursor old = db.query(TABLE_PANTRY, new String[]{COL_PANTRY_EXPIRY}, COL_PANTRY_ID + "=?",
+                new String[]{String.valueOf(item.getId())}, null, null, null);
+        String oldExpiry = old.moveToFirst() ? old.getString(0) : null;
+        old.close();
+        if (!java.util.Objects.equals(oldExpiry, item.getExpiryDate())) {
+            values.put(COL_PANTRY_EXPIRY_LOGGED, 0);
+        }
+
         int rows = db.update(TABLE_PANTRY, values, COL_PANTRY_ID + "=?",
                 new String[]{String.valueOf(item.getId())});
         db.close();
@@ -206,6 +255,142 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cursor.close();
         db.close();
         return entries;
+    }
+
+    // ---------- Food log (dashboard) ----------
+
+    public void logEvents(List<FoodEvent> events) {
+        if (events.isEmpty()) return;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (FoodEvent e : events) insertEvent(db, e);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
+    }
+
+    private void insertEvent(SQLiteDatabase db, FoodEvent e) {
+        ContentValues values = new ContentValues();
+        values.put(COL_FE_TYPE, e.getType());
+        values.put(COL_FE_ITEM, e.getItemName());
+        values.put(COL_FE_QUANTITY, e.getQuantity());
+        values.put(COL_FE_UNIT, e.getUnit());
+        values.put(COL_FE_VALUE, e.getValue());
+        values.put(COL_FE_DATE, e.getDate());
+        values.put(COL_FE_BEFORE_EXPIRY, e.isBeforeExpiry() ? 1 : 0);
+        db.insert(TABLE_FOOD_EVENTS, null, values);
+    }
+
+    /** Removes a pantry item and (optionally) records why, in one transaction. */
+    public void removePantryItem(long id, FoodEvent event) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete(TABLE_PANTRY, COL_PANTRY_ID + "=?", new String[]{String.valueOf(id)});
+            if (event != null) insertEvent(db, event);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
+    }
+
+    /**
+     * Logs an EXPIRED event for every pantry item that has passed its date and flags it so it is
+     * never counted twice. The items stay in the pantry (shown in red) until the user removes them.
+     * Returns how many were logged.
+     */
+    public int sweepExpired(int y, int m, int d) {
+        List<PantryItem> pantry = getAllPantryItems();
+        List<PantryItem> expired = WasteStats.expiredUnlogged(pantry, y, m, d);
+        if (expired.isEmpty()) return 0;
+        List<FoodEvent> events = WasteStats.expiredSweep(pantry, y, m, d);
+
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (FoodEvent e : events) insertEvent(db, e);
+            ContentValues flag = new ContentValues();
+            flag.put(COL_PANTRY_EXPIRY_LOGGED, 1);
+            for (PantryItem item : expired) {
+                db.update(TABLE_PANTRY, flag, COL_PANTRY_ID + "=?", new String[]{String.valueOf(item.getId())});
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
+        return expired.size();
+    }
+
+    /**
+     * "I cooked this": applies the pantry changes from PantryCooker.plan and logs the USED events
+     * in one transaction, so the pantry and the food log can never disagree.
+     */
+    public void applyCook(List<PantryCooker.Change> changes, List<FoodEvent> events) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (PantryCooker.Change c : changes) {
+                String[] idArg = new String[]{String.valueOf(c.item.getId())};
+                if (c.delete) {
+                    db.delete(TABLE_PANTRY, COL_PANTRY_ID + "=?", idArg);
+                } else {
+                    ContentValues values = new ContentValues();
+                    values.put(COL_PANTRY_QUANTITY, c.newQuantity);
+                    values.put(COL_PANTRY_PRICE, WasteStats.priceAfterUse(c.item, c.newQuantity));
+                    db.update(TABLE_PANTRY, values, COL_PANTRY_ID + "=?", idArg);
+                }
+            }
+            for (FoodEvent e : events) insertEvent(db, e);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
+    }
+
+    public List<FoodEvent> getAllFoodEvents() {
+        List<FoodEvent> events = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor cursor = db.query(TABLE_FOOD_EVENTS, null, null, null, null, null, COL_FE_DATE + " ASC");
+        if (cursor.moveToFirst()) {
+            do {
+                events.add(new FoodEvent(
+                        cursor.getLong(cursor.getColumnIndexOrThrow(COL_FE_ID)),
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COL_FE_TYPE)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COL_FE_ITEM)),
+                        cursor.getDouble(cursor.getColumnIndexOrThrow(COL_FE_QUANTITY)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COL_FE_UNIT)),
+                        cursor.getDouble(cursor.getColumnIndexOrThrow(COL_FE_VALUE)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COL_FE_DATE)),
+                        cursor.getInt(cursor.getColumnIndexOrThrow(COL_FE_BEFORE_EXPIRY)) == 1));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return events;
+    }
+
+    /** Marks pantry items whose expiry has been logged, so the sweep never counts them twice. */
+    public void markExpiryLogged(List<Long> pantryIds) {
+        if (pantryIds.isEmpty()) return;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COL_PANTRY_EXPIRY_LOGGED, 1);
+            for (Long id : pantryIds) {
+                db.update(TABLE_PANTRY, values, COL_PANTRY_ID + "=?", new String[]{String.valueOf(id)});
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
     }
 
     // ---------- Recipe read / seed ----------
@@ -318,7 +503,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     private PantryItem cursorToPantryItem(Cursor cursor) {
-        return new PantryItem(
+        PantryItem item = new PantryItem(
                 cursor.getLong(cursor.getColumnIndexOrThrow(COL_PANTRY_ID)),
                 cursor.getString(cursor.getColumnIndexOrThrow(COL_PANTRY_NAME)),
                 cursor.getString(cursor.getColumnIndexOrThrow(COL_PANTRY_DISPLAY_NAME)),
@@ -326,5 +511,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 cursor.getString(cursor.getColumnIndexOrThrow(COL_PANTRY_UNIT)),
                 cursor.getString(cursor.getColumnIndexOrThrow(COL_PANTRY_EXPIRY))
         );
+        int priceCol = cursor.getColumnIndexOrThrow(COL_PANTRY_PRICE);
+        if (!cursor.isNull(priceCol)) item.setPrice(cursor.getDouble(priceCol));
+        item.setExpiryLogged(cursor.getInt(cursor.getColumnIndexOrThrow(COL_PANTRY_EXPIRY_LOGGED)) == 1);
+        return item;
     }
 }

@@ -6,13 +6,15 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.smartpantry.R;
 import com.example.smartpantry.database.DatabaseHelper;
+import com.example.smartpantry.models.FoodEvent;
 import com.example.smartpantry.models.PantryItem;
 import com.example.smartpantry.utils.InputValidator;
+import com.example.smartpantry.utils.PantryRemoval;
+import com.example.smartpantry.utils.WasteStats;
 
 import java.util.Calendar;
 import java.util.Locale;
@@ -20,7 +22,7 @@ import java.util.Locale;
 public class AddEditIngredientActivity extends AppCompatActivity {
 
     private DatabaseHelper dbHelper;
-    private EditText editName, editQuantity, editUnit, editExpiry;
+    private EditText editName, editQuantity, editUnit, editPrice, editExpiry;
     private Button buttonSave, buttonDelete;
 
     private long itemId = -1;
@@ -40,6 +42,7 @@ public class AddEditIngredientActivity extends AppCompatActivity {
         editName = findViewById(R.id.editIngredientName);
         editQuantity = findViewById(R.id.editIngredientQuantity);
         editUnit = findViewById(R.id.editIngredientUnit);
+        editPrice = findViewById(R.id.editIngredientPrice);
         editExpiry = findViewById(R.id.editIngredientExpiry);
         buttonSave = findViewById(R.id.buttonSave);
         buttonDelete = findViewById(R.id.buttonDelete);
@@ -54,6 +57,10 @@ public class AddEditIngredientActivity extends AppCompatActivity {
                 editName.setText(existingItem.getDisplayName());
                 editQuantity.setText(String.valueOf(existingItem.getQuantity()));
                 editUnit.setText(existingItem.getUnit());
+                if (existingItem.getPrice() != null) {
+                    editPrice.setText(new java.text.DecimalFormat("0.##", java.text.DecimalFormatSymbols.getInstance(Locale.US))
+                            .format(existingItem.getPrice()));
+                }
                 editExpiry.setText(existingItem.getExpiryDate());
                 buttonDelete.setVisibility(android.view.View.VISIBLE);
             }
@@ -116,6 +123,21 @@ public class AddEditIngredientActivity extends AppCompatActivity {
 
         double quantity = Double.parseDouble(quantityText);
 
+        Double price = null;
+        String priceText = editPrice.getText().toString().trim();
+        if (!priceText.isEmpty()) {
+            try {
+                price = Double.parseDouble(priceText);
+            } catch (NumberFormatException e) {
+                price = -1.0;
+            }
+            if (price < 0 || price.isNaN() || price.isInfinite()) {
+                editPrice.setError(getString(R.string.error_price));
+                editPrice.requestFocus();
+                return;
+            }
+        }
+
         PantryItem item = new PantryItem(
                 itemId != -1 ? itemId : 0,
                 PantryItem.normalize(name),
@@ -125,24 +147,27 @@ public class AddEditIngredientActivity extends AppCompatActivity {
                 expiry.isEmpty() ? null : expiry
         );
 
+        item.setPrice(price);
+
         if (itemId != -1) {
             dbHelper.updatePantryItem(item);
         } else {
             dbHelper.addPantryItem(item);
+            // A new item with a price is a purchase: it feeds the spending chart.
+            Calendar now = Calendar.getInstance();
+            FoodEvent purchase = WasteStats.purchaseEvent(item, now.get(Calendar.YEAR),
+                    now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH));
+            if (purchase != null) dbHelper.logEvents(java.util.Collections.singletonList(purchase));
         }
         finish();
     }
 
     private void confirmDelete() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.delete_ingredient)
-                .setMessage(R.string.delete_confirmation_message)
-                .setPositiveButton(R.string.delete, (dialog, which) -> {
-                    dbHelper.deletePantryItem(itemId);
-                    finish();
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+        if (existingItem == null) {
+            finish();
+            return;
+        }
+        PantryRemoval.confirm(this, dbHelper, existingItem, this::finish);
     }
 
     @Override
