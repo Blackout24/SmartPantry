@@ -6,9 +6,12 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -118,26 +121,35 @@ public class MealPlannerActivity extends AppCompatActivity {
                 now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH),
                 soonDays);
 
-        String[] labels = new String[ranked.size()];
-        for (int i = 0; i < labels.length; i++) {
-            MealPlanner.Ranked r = ranked.get(i);
-            String note;
-            if (!r.expiringUsed.isEmpty()) {
-                note = getString(R.string.planner_uses_expiring, TextUtils.join(", ", r.expiringUsed));
-            } else if (r.missing == 0) {
-                note = getString(R.string.planner_can_cook);
-            } else {
-                note = getString(R.string.planner_missing, r.missing);
+        ArrayAdapter<MealPlanner.Ranked> adapter = new ArrayAdapter<MealPlanner.Ranked>(this,
+                R.layout.item_recipe_pick, ranked) {
+            @NonNull
+            @Override
+            public View getView(int position, View convertView, @NonNull ViewGroup parent) {
+                View row = convertView != null ? convertView
+                        : LayoutInflater.from(getContext()).inflate(R.layout.item_recipe_pick, parent, false);
+                MealPlanner.Ranked r = getItem(position);
+                TextView name = row.findViewById(R.id.textPickName);
+                TextView note = row.findViewById(R.id.textPickNote);
+                name.setText(r.recipe.getName());
+                if (!r.expiringUsed.isEmpty()) {
+                    note.setText(getString(R.string.planner_uses_expiring, TextUtils.join(", ", r.expiringUsed)));
+                    note.setTextColor(Color.parseColor("#B26A00")); // amber, same as the expiry warnings
+                } else {
+                    note.setText(r.missing == 0 ? getString(R.string.planner_can_cook)
+                            : getString(R.string.planner_missing, r.missing));
+                    note.setTextColor(Color.parseColor("#888888"));
+                }
+                return row;
             }
-            labels[i] = r.recipe.getName() + "\n" + note;
-        }
+        };
 
         String[] dayNames = getResources().getStringArray(R.array.planner_days);
         String[] mealNames = getResources().getStringArray(R.array.planner_meals);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle(dayNames[day] + " \u00B7 " + mealNames[meal])
-                .setItems(labels, (dialog, which) -> {
+                .setAdapter(adapter, (dialog, which) -> {
                     dbHelper.setMeal(day, meal, ranked.get(which).recipe.getId());
                     render();
                 })
