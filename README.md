@@ -80,7 +80,7 @@ Core logic lives in `utils/` and has no Android dependencies where possible, so 
    git clone <this-repo-url>
    ```
    ```
-   https://github.com/Blackout24/SmartPantry
+   [https://github.com/Blackout24/SmartPantry](https://github.com/Blackout24/SmartPantry.git)
    ```
 2. Open the folder in Android Studio (File, then Open) and let Gradle sync finish.
 3. Create or select an emulator (any device with API 23 or higher), or connect a phone with USB debugging on.
