@@ -107,7 +107,3 @@ In Android Studio: right-click `app/src/test/java` and choose **Run Tests**. Fro
 ## Image credits
 
 Recipe photos: *add the source and license here (for example Unsplash or Pexels)*.
-
-## Author
-
-*Your name, student number, module and institution.*
